@@ -26,7 +26,7 @@ DB_PORT = '5433'
 # Константы состояний для ConversationHandler
 NAME, SEX, AGE, CITY, DESCRIPTION, PHOTO, SONG, CONFIRM = range(8)
 
-def create_tables(): # вытащил из старого кода
+def create_tables(): # литералли вырвал из старого кода, хз че не работает
     try:
         conn = psycopg2.connect(
             dbname=DB_NAME,
