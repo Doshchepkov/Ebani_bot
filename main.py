@@ -21,8 +21,32 @@ DB_PASSWORD = 'mypassword'
 DB_HOST = 'localhost'
 DB_PORT = '5433'
 
+
+
 # Константы состояний для ConversationHandler
 NAME, SEX, AGE, CITY, DESCRIPTION, PHOTO, SONG, CONFIRM = range(8)
+
+def create_tables(): # вытащил из старого кода
+    try:
+        conn = psycopg2.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        cursor = conn.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, telegram_id BIGINT '
+                       'UNIQUE NOT NULL, name VARCHAR(255) NOT NULL, sex VARCHAR(10) NOT NULL, age '
+                       'INTEGER NOT NULL, city VARCHAR(255) NOT NULL, description TEXT, photo TEXT, '
+                       'song TEXT);')
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Все таблицы успешно созданы.")
+    except Exception as e:
+        logger.error(f"Ошибка при создании таблиц: {e}")
+
 
 def check_db_connection() -> str:
     try:
