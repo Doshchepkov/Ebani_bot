@@ -193,10 +193,13 @@ async def handle_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def handle_sex(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     sex = update.message.text
-    if sex not in ['Мужской', 'Женский']:
+    if 'м' in sex.lower():
+        context.user_data['sex'] = 'Мужской'
+    elif 'ж' in sex.lower():
+        context.user_data['sex'] = 'Женский'
+    else:
         await update.message.reply_text("Выберите пол из предложенных вариантов: Мужской или Женский.")
         return SEX
-    context.user_data['sex'] = sex
     await update.message.reply_text("Введите ваш возраст (от 16 до 80 лет):")
     return AGE
 
