@@ -36,10 +36,19 @@ def create_tables(): # литералли вырвал из старого ко�
             port=DB_PORT
         )
         cursor = conn.cursor()
+        # создание таблицы users
         cursor.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, telegram_id BIGINT '
                        'UNIQUE NOT NULL, name VARCHAR(255) NOT NULL, sex VARCHAR(10) NOT NULL, age '
                        'INTEGER NOT NULL, city VARCHAR(255) NOT NULL, description TEXT, photo TEXT, '
                        'song TEXT);')
+        conn.commit()
+        # и таблицы likes
+        cursor.execute('CREATE TABLE IF NOT EXISTS public."Likes" (id_like integer NOT NULL GENERATED ALWAYS AS '
+                       'IDENTITY, sender integer NOT NULL, receiver integer, is_mutual boolean, '
+                       'PRIMARY KEY (id_like), CONSTRAINT sender FOREIGN KEY (sender) REFERENCES '
+                       'public.users (id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT '
+                       'VALID, CONSTRAINT receiver FOREIGN KEY (receiver) REFERENCES public.users '
+                       '(id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT VALID);')
         conn.commit()
         cursor.close()
         conn.close()
@@ -445,6 +454,7 @@ def get_random_user():
 def main():
     app = Application.builder().token(TOKEN).build()
 
+    create_tables()
     conversation_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
