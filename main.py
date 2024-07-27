@@ -43,7 +43,7 @@ def create_tables():  # литералли вырвал из старого ко
         cursor.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, telegram_id BIGINT PRIMARY KEY'
                        'UNIQUE NOT NULL, name VARCHAR(255) NOT NULL, sex VARCHAR(10) NOT NULL, age '
                        'INTEGER NOT NULL, city VARCHAR(255) NOT NULL, description TEXT, photo TEXT, '
-                       'song TEXT);')
+                       'song TEXT, region TEXT);')
         conn.commit()
         # и таблицы likes
         cursor.execute('CREATE TABLE IF NOT EXISTS public."Likes" (id_like integer NOT NULL GENERATED ALWAYS AS '
@@ -116,7 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 # Сохранение данных пользователя
-async def save_data(user_id, name, sex, age, city, description, photo, song):
+async def save_data(user_id, name, sex, age, city, description, photo, song, region):
     try:
         conn = psycopg2.connect(
             dbname=DB_NAME,
@@ -127,8 +127,8 @@ async def save_data(user_id, name, sex, age, city, description, photo, song):
         )
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (telegram_id, name, sex, age, city, description, photo, song) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (user_id, name, sex, age, city, description, photo, song)
+            "INSERT INTO users (telegram_id, name, sex, age, city, description, photo, song, region) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (user_id, name, sex, age, city, description, photo, song, region)
         )
         conn.commit()
         cursor.close()
@@ -233,8 +233,10 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     if response:
         json_response = response.json()
         toponym = json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
-            'GeocoderMetaData']['Address']['Components'][-1]['name']
-        context.user_data['city'] = toponym
+            'GeocoderMetaData']['Address']['Components']
+        region, city = [x['name'] for x in toponym if x['kind'] in ['province', 'locality']][-2:]
+        context.user_data['city'] = city
+        context.user_data['region'] = region
     else:
         await update.message.reply_text(
             "Город должен быть на русском языке и содержать только буквы. Попробуйте снова:")
@@ -283,7 +285,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data['city'],
         context.user_data['description'],
         context.user_data['photo'],
-        context.user_data['song']
+        context.user_data['song'],
+        context.user_data['region']
     )
     profile = (
         f"Ваш профиль:\n\n"
