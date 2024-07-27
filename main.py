@@ -309,7 +309,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"Имя: {context.user_data['name']}\n"
         f"Пол: {context.user_data['sex']}\n"
         f"Возраст: {context.user_data['age']}\n"
-        f"Город: {context.user_data['city']}\n"
+        f"Город: {context.user_data['city']}, {context.user_data['region']}\n"
         f"Описание: {context.user_data['description']}\n"
     )
 
