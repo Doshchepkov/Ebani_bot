@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Токен Telegram
-TOKEN = '7477964182:AAGrsvu1z8BsfmBeeGrzUmZcCB6AUh2T2V0'
+TOKEN = '7377984448:AAENm-8FJ6wpDnOnoR4dcOuPZuncBD30Jd0'
 
 # Параметры подключения к базе данных
 DB_NAME = 'mydatabase'
@@ -23,6 +23,38 @@ DB_PORT = '5433'
 
 # Константы состояний для ConversationHandler
 NAME, SEX, AGE, CITY, DESCRIPTION, PHOTO, SONG, CONFIRM = range(8)
+
+def create_tables():
+    try:
+        conn = psycopg2.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                            id SERIAL PRIMARY KEY,
+                            telegram_id BIGINT UNIQUE NOT NULL,
+                            name VARCHAR(255) NOT NULL,
+                            sex VARCHAR(10) NOT NULL,
+                            age INTEGER NOT NULL,
+                            city VARCHAR(255) NOT NULL,
+                            description TEXT,
+                            photo TEXT,
+                            song TEXT);''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS likes (
+                            id SERIAL PRIMARY KEY,
+                            liker_id BIGINT NOT NULL,
+                            liked_id BIGINT NOT NULL,
+                            UNIQUE(liker_id, liked_id));''')
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Все таблицы успешно созданы.")
+    except Exception as e:
+        logger.error(f"Ошибка при создании таблиц: {e}")
 
 def check_db_connection() -> str:
     try:
@@ -123,7 +155,7 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user:
         profile = (
             f"Ваш профиль:\n\n"
-            f"Имя: {user[2]}\n"  # Проверьте правильность индексов
+            f"Имя: {user[2]}\n"
             f"Пол: {user[3]}\n"
             f"Возраст: {user[4]}\n"
             f"Город: {user[5]}\n"
@@ -255,8 +287,6 @@ async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Ваш профиль был успешно удален.")
     else:
         await update.message.reply_text("Профиль не найден. Возможно, вы не были зарегистрированы.")
-        
-
 
 async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = get_random_user()
@@ -273,7 +303,6 @@ async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         dislike_button = InlineKeyboardButton("👎 Дизлайк", callback_data=f"dislike:{user[1]}")
         keyboard = InlineKeyboardMarkup([[like_button, dislike_button]])
 
-        # Используем context.bot.send_message вместо update.message.reply_text
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=profile,
@@ -285,112 +314,75 @@ async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await context.bot.send_audio(chat_id=update.effective_chat.id, audio=user[8])
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Не удалось найти пользователей.")
-        
-        
-               
-      
-async def like_dislike_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    user_id = update.effective_user.id
-    target_id = int(query.data.split(":")[1])
+    await query.answer()
+    action, target_id = query.data.split(':')
+    target_id = int(target_id)
+    user_id = query.from_user.id
 
-    if query.data.startswith("like"):
-        await update_likes(user_id, target_id, True)
-        await query.message.reply_text("👍 Вы поставили лайк!")
-    elif query.data.startswith("dislike"):
-        await update_likes(user_id, target_id, False)
-        await query.message.reply_text("👎 Вы поставили дизлайк!")
+    if action == 'like':
+        try:
+            conn = psycopg2.connect(
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO likes (liker_id, liked_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (user_id, target_id))
+            conn.commit()
+            
+            # Получаем данные профиля лайкнувшего пользователя
+            cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
+            liker_profile = cursor.fetchone()
 
-    # Удаляем клавиатуру с кнопками лайка/дизлайка
-    await query.message.edit_reply_markup(reply_markup=None)
+            # Отправляем профиль лайкнувшего пользователя пользователю, которого лайкнули
+            if liker_profile:
+                liker_info = (
+                    f"Вас лайкнул пользователь:\n\n"
+                    f"Имя: {liker_profile[2]}\n"
+                    f"Пол: {liker_profile[3]}\n"
+                    f"Возраст: {liker_profile[4]}\n"
+                    f"Город: {liker_profile[5]}\n"
+                    f"Описание: {liker_profile[6]}\n"
+                )
+                # Кнопки для лайка или дизлайка
+                like_button = InlineKeyboardButton("👍 Лайк", callback_data=f"like:{user_id}")
+                dislike_button = InlineKeyboardButton("👎 Дизлайк", callback_data=f"dislike:{user_id}")
+                keyboard = InlineKeyboardMarkup([[like_button, dislike_button]])
 
-    # Показываем следующий профиль
-    await search_profile(update, context)
+                await context.bot.send_message(chat_id=target_id, text=liker_info, reply_markup=keyboard)
+                if liker_profile[7]:  # Фото
+                    await context.bot.send_photo(chat_id=target_id, photo=liker_profile[7])
+                if liker_profile[8]:  # Песня
+                    await context.bot.send_audio(chat_id=target_id, audio=liker_profile[8])
 
-#ДО СЮДА ВСЕ ФУНКЦИИ РАБОТАЮТ ХОРОШО!!!!!!!!!!
+            # Проверка на взаимный лайк
+            cursor.execute("SELECT * FROM likes WHERE liker_id = %s AND liked_id = %s", (target_id, user_id))
+            mutual_like = cursor.fetchone()
+            cursor.close()
+            conn.close()
+                
+            if mutual_like:
+                user_link =  f"https://web.telegram.org/a/#{user_id}"
+                target_link = f"https://web.telegram.org/a/#{target_id}"
+                await context.bot.send_message(chat_id=user_id, text=f"У вас взаимный лайк! Вот контакт вашего совпадения: {target_link}")
+                await context.bot.send_message(chat_id=target_id, text=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user_link}")
+            else:
+                await query.edit_message_text(text="Вы поставили лайк этому профилю.")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при лайке: {e}")
+            await query.edit_message_text(text="Произошла ошибка при обработке вашего действия.")
+    
+    elif action == 'dislike':
+        await query.edit_message_text(text="Вы поставили дизлайк этому профилю.")
+    else:
+        await query.edit_message_text(text="Неизвестное действие.")
 
-
-async def update_likes(user_id, target_id, like):
-    try:
-        conn = psycopg2.connect(
-            dbname=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            host=DB_HOST,
-            port=DB_PORT
-        )
-        cursor = conn.cursor()
-
-        # Проверка, лайкнул ли целевой пользователь обратно
-        cursor.execute("SELECT is_mutual FROM likes WHERE user_telegram_id = %s AND liked_user_telegram_id = %s", (target_id, user_id))
-        mutual_like = cursor.fetchone()
-
-        is_mutual = False
-        if mutual_like and mutual_like[0]:  # Если целевой пользователь лайкнул и is_mutual True
-            is_mutual = True
-
-        # Обновление или вставка записи
-        cursor.execute(
-            "INSERT INTO likes (user_telegram_id, liked_user_telegram_id, is_mutual) VALUES (%s, %s, %s) "
-            "ON CONFLICT (user_telegram_id, liked_user_telegram_id) DO UPDATE SET is_mutual = %s",
-            (user_id, target_id, like, is_mutual)
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        if is_mutual:
-            await notify_mutual_like(user_id, target_id)
-        elif like:  # Отправить уведомление только если это был лайк
-            await notify_new_like(user_id, target_id)
-
-    except Exception as e:
-        logger.error(f"Ошибка при обновлении лайков: {e}")
-
-
-async def notify_new_like(context, user_id, target_id):
-    try:
-        user_info = get_user_info(user_id)
-        if user_info:
-            message = f"Вы получили новый лайк от {user_info['name']}! Зайдите в приложение, чтобы посмотреть профиль и ответить."
-            await context.bot.send_message(chat_id=target_id, text=message)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке уведомления о новом лайке: {e}")
-
-async def notify_mutual_like(context, user_id, target_id):
-    try:
-        user_info = get_user_info(user_id)
-        target_info = get_user_info(target_id)
-        if user_info and target_info:
-            message_user = f"У вас взаимный лайк с {target_info['name']}!"
-            message_target = f"У вас взаимный лайк с {user_info['name']}!"
-            await context.bot.send_message(chat_id=user_id, text=message_user)
-            await context.bot.send_message(chat_id=target_id, text=message_target)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке уведомления о взаимном лайке: {e}")
-
-def get_user_info(user_id):
-    try:
-        conn = psycopg2.connect(
-            dbname=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            host=DB_HOST,
-            port=DB_PORT
-        )
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM users WHERE telegram_id = %s", (user_id,))
-        user_info = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if user_info:
-            return {'name': user_info[0]}
-        else:
-            return None
-    except Exception as e:
-        logger.error(f"Ошибка при получении информации о пользователе: {e}")
-        return None
 
 def get_random_user():
     try:
@@ -412,45 +404,35 @@ def get_random_user():
             return None
     except Exception as e:
         logger.error(f"Ошибка при получении случайного пользователя: {e}")
-        return None
+        return None 
 
+# Обработка лайков и дизлайков
+application = Application.builder().token(TOKEN).build()
 
+# Создание и проверка таблиц в базе данных
+create_tables()
 
+# Определение обработчиков команд
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler('start', start)],
+    states={
+        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_name)],
+        SEX: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_sex)],
+        AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_age)],
+        CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_city)],
+        DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_description)],
+        PHOTO: [MessageHandler(filters.PHOTO, handle_photo)],
+        SONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song)],
+        CONFIRM: [MessageHandler(filters.AUDIO, handle_confirmation)]
+    },
+    fallbacks=[CommandHandler('start', start)]
+)
 
-
-def main():
-    app = Application.builder().token(TOKEN).build()
-
-    conversation_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            PHOTO: [MessageHandler(filters.PHOTO, handle_photo)],
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_name)],
-            SEX: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_sex)],
-            AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_age)],
-            CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_city)],
-            DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_description)],
-            SONG: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song),
-                MessageHandler(filters.AUDIO, handle_confirmation)
-            ],
-            CONFIRM: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_confirmation),
-                MessageHandler(filters.AUDIO, handle_confirmation)
-            ]
-        },
-        fallbacks=[CommandHandler('start', start)]
-    )
-
-    app.add_handler(conversation_handler)
-    app.add_handler(CommandHandler('myprofile', my_profile))
-    app.add_handler(CommandHandler('deleteprofile', delete_profile))
-    app.add_handler(CommandHandler('changeprofile', change_profile))
-    app.add_handler(CommandHandler('search', search_profile))
-    app.add_handler(CallbackQueryHandler(like_dislike_callback))
-
-    logger.info("Бот запущен")
-    app.run_polling()
+application.add_handler(conv_handler)
+application.add_handler(CommandHandler("myprofile", my_profile))
+application.add_handler(CommandHandler("deleteprofile", delete_profile))
+application.add_handler(CommandHandler("searchprofile", search_profile))
+application.add_handler(CallbackQueryHandler(handle_like_dislike))
 
 if __name__ == '__main__':
-    main()
+    application.run_polling()
