@@ -15,7 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Токен Telegram
-TOKEN = '7377984448:AAENm-8FJ6wpDnOnoR4dcOuPZuncBD30Jd0'
+# TOKEN = '7377984448:AAENm-8FJ6wpDnOnoR4dcOuPZuncBD30Jd0'
+TOKEN = '7477964182:AAGrsvu1z8BsfmBeeGrzUmZcCB6AUh2T2V0'
 # Токен яндекс карт
 api_key = 'fff13ee3-6829-41bc-ae41-d67b28b9f45f'
 # Параметры подключения к базе данных
@@ -29,7 +30,7 @@ DB_PORT = '5433'
 NAME, SEX, AGE, CITY, DESCRIPTION, PHOTO, SONG, CONFIRM = range(8)
 
 
-def create_tables():  # литералли вырвал из старого кода, хз че не работает
+def create_tables():
     try:
         conn = psycopg2.connect(
             dbname=DB_NAME,
@@ -40,22 +41,36 @@ def create_tables():  # литералли вырвал из старого ко
         )
         cursor = conn.cursor()
         # создание таблицы users
-        cursor.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, telegram_id BIGINT PRIMARY KEY'
-                       'UNIQUE NOT NULL, name VARCHAR(255) NOT NULL, sex VARCHAR(10) NOT NULL, age '
-                       'INTEGER NOT NULL, city VARCHAR(255) NOT NULL, description TEXT, photo TEXT, '
-                       'song TEXT, region TEXT);')
+        cursor.execute('CREATE TABLE IF NOT EXISTS public.users(' \
+                       'id serial NOT NULL, ' \
+                       'telegram_id bigint NOT NULL, ' \
+                       'name character varying NOT NULL, ' \
+                       'sex character varying NOT NULL, ' \
+                       'age smallint NOT NULL, ' \
+                       'city character varying NOT NULL, ' \
+                       'description text, ' \
+                       'photo text, ' \
+                       'song text, ' \
+                       'region character varying, ' \
+                       'PRIMARY KEY (id));')
+
         conn.commit()
         # и таблицы likes
-        cursor.execute('CREATE TABLE IF NOT EXISTS public."Likes" (id_like integer NOT NULL GENERATED ALWAYS AS '
-                       'IDENTITY, sender integer NOT NULL, receiver integer, is_mutual boolean, '
-                       'PRIMARY KEY (id_like), CONSTRAINT sender FOREIGN KEY (sender) REFERENCES '
-                       'public.users (id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT '
-                       'VALID, CONSTRAINT receiver FOREIGN KEY (receiver) REFERENCES public.users '
-                       '(id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT VALID);')
+        cursor.execute('CREATE TABLE public."Likes"(' \
+                       'like_id serial NOT NULL,' \
+                       'sender integer NOT NULL,' \
+                       'receiver integer NOT NULL,' \
+                       'PRIMARY KEY (like_id),' \
+                       'FOREIGN KEY (sender)' \
+                       'REFERENCES public.users (id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT VALID,' \
+                       'FOREIGN KEY (receiver)' \
+                       'REFERENCES public.users (id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION NOT VALID);')
+
         conn.commit()
         cursor.close()
         conn.close()
         logger.info("Все таблицы успешно созданы.")
+        print('Все таблицы успешно созданы')
     except Exception as e:
         logger.error(f"Ошибка при создании таблиц: {e}")
 
@@ -74,6 +89,7 @@ def check_db_connection() -> str:
         return "Подключение к базе данных успешно установлено. Код ответа: 200"
     except Exception as e:
         logger.error(f"Ошибка при подключении к базе данных: {e}")
+        print(f"Ошибка при подключении к базе данных: {e}")
         return f"Ошибка при подключении к базе данных: {e}"
 
 
@@ -426,7 +442,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(text="Неизвестное действие.")
 
 
-def get_random_user():
+def get_random_user(update: Update):
     try:
         conn = psycopg2.connect(
             dbname=DB_NAME,
@@ -436,12 +452,16 @@ def get_random_user():
             port=DB_PORT
         )
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users")
-        users = cursor.fetchall()
+        query = update.callback_query
+        cursor.execute(f'SELECT city FROM users WHERE id = {query.from_user.id}')
+        city = cursor.fetchall()[0]
+        cursor.execute(f"SELECT * FROM users WHERE city = {city} AND NOT IN (SELECT receiver FROM Likes WHERE sender = {query.from_user.id})")
+        liked = cursor.fetchall()
+        users_city = 0
         cursor.close()
         conn.close()
-        if users:
-            return random.choice(users)
+        if users_city:
+            return random.choice(users_city)
         else:
             return None
     except Exception as e:
@@ -451,8 +471,6 @@ def get_random_user():
 
 application = Application.builder().token(TOKEN).build()
 
-# Создание и проверка таблиц в базе данных
-create_tables()
 
 # Определение обработчиков команд
 conv_handler = ConversationHandler(
@@ -477,4 +495,5 @@ application.add_handler(CommandHandler("searchprofile", search_profile))
 application.add_handler(CallbackQueryHandler(handle_like_dislike))
 
 if __name__ == '__main__':
+    create_tables()
     application.run_polling()
