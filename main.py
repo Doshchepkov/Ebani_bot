@@ -41,7 +41,7 @@ def create_tables():
         )
         cursor = conn.cursor()
         # создание таблицы users
-        cursor.execute('CREATE TABLE IF NOT EXISTS public.users(' \
+        cursor.execute('CREATE TABLE IF NOT EXISTS users(' \
                        'id serial NOT NULL, ' \
                        'telegram_id bigint NOT NULL, ' \
                        'name character varying NOT NULL, ' \
@@ -56,7 +56,7 @@ def create_tables():
 
         conn.commit()
         # и таблицы likes
-        cursor.execute('CREATE TABLE public."Likes"(' \
+        cursor.execute('CREATE TABLE IF NOT EXISTS Likes(' \
                        'like_id serial NOT NULL,' \
                        'sender integer NOT NULL,' \
                        'receiver integer NOT NULL,' \
@@ -455,15 +455,38 @@ def get_random_user(update: Update):
         query = update.callback_query
         cursor.execute(f'SELECT city FROM users WHERE id = {query.from_user.id}')
         city = cursor.fetchall()[0]
-        cursor.execute(f"SELECT * FROM users WHERE city = {city} AND NOT IN (SELECT receiver FROM Likes WHERE sender = {query.from_user.id})")
-        liked = cursor.fetchall()
-        users_city = 0
+        cursor.execute(f"SELECT * FROM users  WHERE city = '{city}' AND id NOT IN (SELECT receiver FROM Likes WHERE "
+                       f"sender = {query.from_user.id}) AND id <> {query.from_user.id}")
+        users_city = cursor.fetchall()
         cursor.close()
         conn.close()
         if users_city:
             return random.choice(users_city)
         else:
-            return None
+            cursor = conn.cursor()
+            cursor.execute(f'SELECT region FROM users WHERE id = {query.from_user.id}')
+            region = cursor.fetchall()[0]
+            cursor.execute(
+                f"SELECT * FROM users  WHERE region = '{region}' AND id NOT IN (SELECT receiver FROM Likes WHERE "
+                f"sender = {query.from_user.id}) AND id <> {query.from_user.id}")
+            users_region = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            if users_region:
+                return random.choice(users_region)
+            else:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT * FROM users  WHERE id NOT IN (SELECT receiver FROM Likes WHERE "
+                    f"sender = {query.from_user.id}) AND id <> {query.from_user.id}")
+                users_any = cursor.fetchall()
+                cursor.close()
+                conn.close()
+                if users_any:
+                    return random.choice(users_region)
+                else:
+                    return None
+
     except Exception as e:
         logger.error(f"Ошибка при получении случайного пользователя: {e}")
         return None
