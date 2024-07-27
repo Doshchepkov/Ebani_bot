@@ -3,6 +3,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import psycopg2
 import logging
 import random
+import requests
+
 
 # Логирование
 logging.basicConfig(
@@ -14,12 +16,15 @@ logger = logging.getLogger(__name__)
 # Токен Telegram
 TOKEN = '7477964182:AAGrsvu1z8BsfmBeeGrzUmZcCB6AUh2T2V0'
 
+api_key = 'fff13ee3-6829-41bc-ae41-d67b28b9f45f'
+
 # Параметры подключения к базе данных
 DB_NAME = 'mydatabase'
 DB_USER = 'myuser'
 DB_PASSWORD = 'mypassword'
 DB_HOST = 'localhost'
 DB_PORT = '5433'
+MAPSTOK = '40d1649f-0493-4b7098ba-98533de7710b'
 
 
 
@@ -214,10 +219,17 @@ async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     city = update.message.text
-    if not city.isalpha():  # Проверка на слитность и только алфавитные символы
-        await update.message.reply_text("Город должен быть на русском языке и содержать только буквы. Попробуйте снова:")
+    geocoder_request = f'https://geocode-maps.yandex.ru/1.x/?apikey={api_key}&geocode={city}&format=json'
+    response = requests.get(geocoder_request)
+    if response:
+        json_response = response.json()
+        toponym = json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
+            'GeocoderMetaData']['Address']['Components'][-1]['name']
+        context.user_data['city'] = toponym
+    else:
+        await update.message.reply_text(
+            "Город должен быть на русском языке и содержать только буквы. Попробуйте снова:")
         return CITY
-    context.user_data['city'] = city
     await update.message.reply_text("Введите описание вашего профиля (на русском языке):")
     return DESCRIPTION
 
