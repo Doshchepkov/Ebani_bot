@@ -163,8 +163,8 @@ def is_user_banned(telegram_id: int) -> bool:
         cursor = conn.cursor()
         
         # Выполнение запроса для проверки, заблокирован ли пользователь
-        cursor.execute('SELECT EXISTS (SELECT 1 FROM bans WHERE telegram_id = %s)', (telegram_id,))
-        is_banned = cursor.fetchone()[0]
+        cursor.execute(f'SELECT role FROM users WHERE id = {telegram_id}')
+        is_banned = cursor.fetchone()[0] == 'Banned'
         
         # Закрытие соединения
         cursor.close()

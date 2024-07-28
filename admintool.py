@@ -17,6 +17,15 @@ def dbconnect():
 conn = dbconnect()
 cursor = conn.cursor()
 
+def ban(id):
+    conn = dbconnect()
+    cursor = conn.cursor()
+    cursor.execute(f"UPDATE users SET role = 'Banned' WHERE telegram_id = {id}")
+    conn.commit()
+    conn.close()
+    cursor.close()
+
+
 def checkrole(id): # проверка на админа
     conn = dbconnect()
     cursor = conn.cursor()
