@@ -161,15 +161,15 @@ def is_user_banned(telegram_id: int) -> bool:
             port=DB_PORT
         )
         cursor = conn.cursor()
-        
+
         # Выполнение запроса для проверки, заблокирован ли пользователь
         cursor.execute(f'SELECT role FROM users WHERE id = {telegram_id}')
-        is_banned = cursor.fetchone()[0] == 'Banned'
-        
+        is_banned = cursor.fetchone() == 'Banned'
+
         # Закрытие соединения
         cursor.close()
         conn.close()
-        
+
         return is_banned
     except Exception as e:
         logger.error(f"Ошибка при проверке бана: {e}")
@@ -239,7 +239,7 @@ async def delete_data(user_id):
     except Exception as e:
         logger.error(f"Ошибка при удалении данных: {e}")
 
-async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=0):
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
     
@@ -258,7 +258,7 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Добавление роли, если она есть
         if user[12]:  # Предполагается, что роль находится в user[12]
             profile_text += f"Роль: {user[12]}\n"
-            
+
         await update.message.reply_text(profile_text)
         
         if user[7]:  # Фото
@@ -320,9 +320,10 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     response = requests.get(geocoder_request)
     if response:
         json_response = response.json()
-        toponym = json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
-            'GeocoderMetaData']['Address']['Components']
         try:
+            toponym = \
+            json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
+                'GeocoderMetaData']['Address']['Components']
             region, city = [x['name'] for x in toponym if x['kind'] in ['province', 'locality']][-2:]
         except:
             await update.message.reply_text(
@@ -368,7 +369,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def handle_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     preferences = update.message.text
-    
+
     # Проверка, выбраны ли кнопки с предпочтениями
     if preferences.lower() in ['Девушки', 'мужчины', 'нет предпочтений']:
         context.user_data['preferences'] = preferences
@@ -387,14 +388,13 @@ async def handle_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return PREFERENCES
 
 async def handle_preferences_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    preferences = update.message.text.lower()
-    if 'м' in preferences or 'п' in preferences:
-        context.user_data['preferences'] = 'мужчины'
-    elif 'ж' or 'д' in preferences:
-        context.user_data['preferences'] = 'девушки'
+    preferences = update.message.text
+    if preferences.lower() in ['девушки', 'мужчины', 'девушки и мужчины']:
+        context.user_data['preferences'] = preferences
+        return await handle_confirmation(update, context)
     else:
-        context.user_data['preferences'] = 'нет предпочтений'
-    return PREFERENCES
+        await update.message.reply_text("Пожалуйста, укажите действительные предпочтения: 'девушки', 'мужчины', или 'девушки и мужчины'. Попробуйте снова:")
+        return PREFERENCES
 
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if 'song' not in context.user_data:
@@ -422,6 +422,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"Описание: {context.user_data['description']}\n"
         f"Предпочтения: {context.user_data.get('preferences', 'девушки и мужчины')}\n"
     )
+
+    await update.message.reply_text(profile, reply_markup=ReplyKeyboardRemove())
     if context.user_data['photo']:
         await context.bot.send_photo(chat_id=update.effective_chat.id, photo=context.user_data['photo'])
     if context.user_data['song']:
