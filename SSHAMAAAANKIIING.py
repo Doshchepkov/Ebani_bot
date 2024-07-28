@@ -92,17 +92,21 @@ def create_tables():
 
         conn.commit()
 
-        cursor.execute('CREATE TABLE IF NOT EXISTS reports('
+        cursor.execute('CREATE TABLE reports('
                        'rep_id serial NOT NULL,'
                        'reporter integer NOT NULL,'
                        'reported integer NOT NULL,'
                        'PRIMARY KEY (rep_id),'
-                       'CONSTRAINT reporter FOREIGN KEY (reporter, reported)'
-                       'REFERENCES public.users (id, id) MATCH SIMPLE'
+                       'CONSTRAINT reporter FOREIGN KEY (reporter)'
+                       'REFERENCES users (id) MATCH SIMPLE'
                        'ON UPDATE NO ACTION'
                        'ON DELETE NO ACTION'
-                       'NOT VALID'
-                       ');')
+                       'NOT VALID,'
+                       'CONSTRAINT reported FOREIGN KEY (reported)'
+                       'REFERENCES users (id) MATCH SIMPLE'
+                       'ON UPDATE NO ACTION'
+                       'ON DELETE NO ACTION'
+                       'NOT VALID');')
         cursor.close()
         conn.close()
         logger.info("Все таблицы успешно созданы.")
@@ -564,6 +568,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             cursor.execute("UPDATE users SET reports = reports + 1 WHERE telegram_id = %s", (reported_user_id,))
             conn.commit()
+            cursor.execute('A')
             logger.info("Жалоба успешно записана.")
             if query.message and query.message.text:
                 await query.edit_message_text(text="Вы пожаловались на этот профиль. Мы рассмотрим ваш запрос.")
