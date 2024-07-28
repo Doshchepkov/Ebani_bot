@@ -106,7 +106,7 @@ def create_tables():
                        'REFERENCES users (id) MATCH SIMPLE'
                        'ON UPDATE NO ACTION'
                        'ON DELETE NO ACTION'
-                       'NOT VALID');')
+                       'NOT VALID);')
         cursor.close()
         conn.close()
         logger.info("Все таблицы успешно созданы.")
@@ -565,11 +565,16 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
         elif action == 'report':
             reported_user_id = int(query.data.split(':')[1])
             logger.info(f"Попытка подать жалобу на пользователя: {reported_user_id}")
-            
-            cursor.execute("UPDATE users SET reports = reports + 1 WHERE telegram_id = %s", (reported_user_id,))
-            conn.commit()
-            cursor.execute('A')
-            logger.info("Жалоба успешно записана.")
+            cursor.execute(f'SELECT rep_id FROM reports WHERE reporter = {user_id} and reported = {reported_user_id}')
+            prev = cursor.fetchall()
+            if not prev:
+                cursor.execute("UPDATE users SET reports = reports + 1 WHERE telegram_id = %s", (reported_user_id,))
+                conn.commit()
+                cursor.execute(f'INSERT INTO reports (reporter, reported) VALUES ({user_id}, {reported_user_id}')
+                conn.commit()
+                logger.info("Жалоба успешно записана.")
+            else:
+                await query.edit_message_text(text="Вы уже жаловались на этот профиль ранее.")
             if query.message and query.message.text:
                 await query.edit_message_text(text="Вы пожаловались на этот профиль. Мы рассмотрим ваш запрос.")
 
