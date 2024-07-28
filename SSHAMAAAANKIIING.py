@@ -422,8 +422,6 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"Описание: {context.user_data['description']}\n"
         f"Предпочтения: {context.user_data.get('preferences', 'девушки и мужчины')}\n"
     )
-
-    await update.message.reply_text(profile, reply_markup=ReplyKeyboardRemove())
     if context.user_data['photo']:
         await context.bot.send_photo(chat_id=update.effective_chat.id, photo=context.user_data['photo'])
     if context.user_data['song']:
@@ -573,10 +571,11 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 cursor.execute(f'INSERT INTO reports (reporter, reported) VALUES ({user_id}, {reported_user_id}')
                 conn.commit()
                 logger.info("Жалоба успешно записана.")
+                if query.message and query.message.text:
+                    await query.edit_message_text(text="Вы пожаловались на этот профиль. Мы рассмотрим ваш запрос.")
             else:
                 await query.edit_message_text(text="Вы уже жаловались на этот профиль ранее.")
-            if query.message and query.message.text:
-                await query.edit_message_text(text="Вы пожаловались на этот профиль. Мы рассмотрим ваш запрос.")
+
 
         else:
             if query.message and query.message.text:
