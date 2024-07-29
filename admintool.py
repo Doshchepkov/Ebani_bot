@@ -80,7 +80,7 @@ async def search(update, context):
         ]
         keyboard = InlineKeyboardMarkup(buttons)
         # query = update.callback_query
-        if profile[7]:  # If there's a photo URL
+        if profile[7]:
             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=profile[7])
         try:
             await update.message.reply_text(text, reply_markup=keyboard)
@@ -123,6 +123,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         await search(update, context)
 
+async def mail(update, context):
+    await update.message.reply_text('Введите сообщение для массовой рассылки')
+    return 1
 
 
 def main():
@@ -130,12 +133,16 @@ def main():
                                    states={
                                        1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},
                                    fallbacks=[CommandHandler('start', start)])
-
+    conv_mail = ConversationHandler(entry_points=[CommandHandler('mail', mail)],
+                                  states={
+                                      1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},
+                                  fallbacks=[CommandHandler('start', start)])
     application = Application.builder().token(TOKEN).build()
     application.add_handler(conv_id)
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("admin", admin))
     application.add_handler(CommandHandler("search", search))
+    application.add_handler(CommandHandler("mail", mail))
     application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling()
