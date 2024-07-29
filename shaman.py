@@ -580,14 +580,19 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await query.edit_message_text(text="Вы поставили дизлайк этому профилю.")
 
         elif action == 'report':
+            cursor.execute(f'SELECT id FROM users WHERE telegram_id = {user_id}')
+            dbui = cursor.fetchone()
+
             reported_user_id = int(query.data.split(':')[1])
+            cursor.execute(f'SELECT id FROM users WHERE telegram_id = {reported_user_id}')
+            dbrepid = cursor.fetchone()[0]
             logger.info(f"Попытка подать жалобу на пользователя: {reported_user_id}")
-            cursor.execute('SELECT rep_id FROM reports WHERE reporter = %s AND reported = %s', (user_id, reported_user_id))
+            cursor.execute('SELECT rep_id FROM reports WHERE reporter = %s AND reported = %s', (dbui, dbrepid))
             prev = cursor.fetchall()
             if not prev:
                 cursor.execute("UPDATE users SET reports = reports + 1 WHERE telegram_id = %s", (reported_user_id,))
                 conn.commit()
-                cursor.execute('INSERT INTO reports (reporter, reported) VALUES (%s, %s)', (user_id, reported_user_id))
+                cursor.execute('INSERT INTO reports (reporter, reported) VALUES (%s, %s)', (dbui, dbrepid))
                 conn.commit()
                 logger.info("Жалоба успешно записана.")
                 if query.message and query.message.text:
