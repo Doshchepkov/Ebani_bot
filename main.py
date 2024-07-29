@@ -423,6 +423,7 @@ async def handle_preferences_response(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("Пожалуйста, укажите действительные предпочтения: 'девушки', 'мужчины', или 'девушки и мужчины'. Попробуйте снова:")
         return PREFERENCES
 
+
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     await save_data(
