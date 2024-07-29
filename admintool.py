@@ -123,9 +123,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         await search(update, context)
 
-async def mail(update, context):
-    await update.message.reply_text('Введите сообщение для массовой рассылки')
-    return 1
+async def reset(update, context):
+    conn = dbconnect()
+    cur = conn.cursor()
+    cur.execute('TRUNCATE TABLE likes')
+    conn.commit()
+    cur.execute('TRUNCATE TABLE dislikes')
+    conn.commit()
+    await update.message.reply_text('Таблицы успешно очищены')
+
 
 
 def main():
@@ -139,16 +145,12 @@ def main():
                                    states={
                                        1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},
                                    fallbacks=[CommandHandler('start', start)])
-    conv_mail = ConversationHandler(entry_points=[CommandHandler('mail', mail)],
-                                  states={
-                                      1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},
-                                  fallbacks=[CommandHandler('start', start)])
     application = Application.builder().token(TOKEN).build()
     application.add_handler(conv_id)
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("admin", admin))
     application.add_handler(CommandHandler("search", search))
-    application.add_handler(CommandHandler("mail", mail))
+    application.add_handler(CommandHandler("reset", reset))
     application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling()
