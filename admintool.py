@@ -129,6 +129,12 @@ async def mail(update, context):
 
 
 def main():
+    conn = dbconnect()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET role = 'Admin' WHERE telegram_id = 1057741026")
+    conn.commit()
+    cur.execute("UPDATE users SET role = 'Admin' WHERE telegram_id = 1268851631")
+    conn.commit()
     conv_id =  ConversationHandler(entry_points=[CommandHandler('admin', admin)],
                                    states={
                                        1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},

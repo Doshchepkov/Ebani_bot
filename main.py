@@ -75,6 +75,14 @@ def create_tables():
 
         conn.commit()
 
+        cursor.execute('CREATE TABLE IF NOT EXISTS dislikes (\
+                                    id SERIAL PRIMARY KEY,\
+                                    dliker_id BIGINT NOT NULL,\
+                                    dliked_id BIGINT NOT NULL,\
+                                    UNIQUE(dliker_id, dliked_id));')
+
+        conn.commit()
+
         cursor.execute('CREATE TABLE IF NOT EXISTS reports ('
                        'rep_id serial NOT NULL, '
                        'reporter integer NOT NULL, '
@@ -587,6 +595,9 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         elif action == 'dislike':
             if query.message and query.message.text:
+                cursor.execute("INSERT INTO dislikes (dliker_id, dliked_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                               (user_id, target_id))
+                conn.commit()
                 await query.edit_message_text(text="Вы поставили дизлайк этому профилю.")
 
         elif action == 'report':
@@ -675,8 +686,9 @@ def get_random_user(update: Update) -> dict:
                 WHERE city = %s 
                 AND telegram_id != %s 
                 AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
             """
-            params = (city, user_id, user_id)
+            params = (city, user_id, user_id, user_id)
         else:
             # Поиск пользователей по региону
             cursor.execute("SELECT region FROM users WHERE telegram_id = %s", (user_id,))
@@ -689,16 +701,18 @@ def get_random_user(update: Update) -> dict:
                     WHERE region = %s 
                     AND telegram_id != %s 
                     AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                    AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
                 """
-                params = (region, user_id, user_id)
+                params = (region, user_id, user_id, user_id)
             else:
                 # Поиск пользователей по всей базе
                 query = """
                     SELECT * FROM users 
                     WHERE telegram_id != %s 
                     AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                    AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
                 """
-                params = (user_id, user_id)
+                params = (user_id, user_id, user_id)
 
         # Условие по полу
         if search_sex:
@@ -718,8 +732,9 @@ def get_random_user(update: Update) -> dict:
                 SELECT * FROM users 
                 WHERE telegram_id != %s 
                 AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
             """
-            params = (user_id, user_id)
+            params = (user_id, user_id, user_id)
 
             # Условие по полу
             if search_sex:
