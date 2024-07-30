@@ -13,18 +13,12 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-#Выдать роль
-"""UPDATE users
-SET role = 'Admin'
-WHERE telegram_id = 5086271521;"""
-
 logger = logging.getLogger(__name__)
 
 # Токен Telegram
 # TOKEN = '7377984448:AAENm-8FJ6wpDnOnoR4dcOuPZuncBD30Jd0'
 TOKEN = '7477964182:AAGrsvu1z8BsfmBeeGrzUmZcCB6AUh2T2V0'
-# Токен яндекс карт
-api_key = 'fff13ee3-6829-41bc-ae41-d67b28b9f45f'
+api_key = 'fff13ee3-6829-41bc-ae41-d67b28b9f45f' # Токен яндекс карт
 # Параметры подключения к базе данных
 DB_NAME = 'mydatabase'
 DB_USER = 'myuser'
@@ -33,8 +27,8 @@ DB_HOST = 'localhost'
 DB_PORT = '5433'
 
 # Константы состояний для ConversationHandler
-# Константы состояний для ConversationHandler
 NAME, SEX, AGE, CITY, DESCRIPTION, PHOTO, SONG, AUDIO, PREFERENCES, CONFIRM = range(10)
+
 
 def create_tables():
     try:
@@ -65,8 +59,7 @@ def create_tables():
 
         conn.commit()
 
-        
-        # и таблицы likes
+        # таблицы likes
         cursor.execute('CREATE TABLE IF NOT EXISTS likes (\
                             id SERIAL PRIMARY KEY,\
                             liker_id BIGINT NOT NULL,\
@@ -75,6 +68,7 @@ def create_tables():
 
         conn.commit()
 
+        # таблицы dislikes
         cursor.execute('CREATE TABLE IF NOT EXISTS dislikes (\
                                     id SERIAL PRIMARY KEY,\
                                     dliker_id BIGINT NOT NULL,\
@@ -82,7 +76,7 @@ def create_tables():
                                     UNIQUE(dliker_id, dliked_id));')
 
         conn.commit()
-
+        # таблицы reports
         cursor.execute('CREATE TABLE IF NOT EXISTS reports ('
                        'rep_id serial NOT NULL, '
                        'reporter integer NOT NULL, '
@@ -93,13 +87,14 @@ def create_tables():
                        'FOREIGN KEY (reported) REFERENCES users(id) '
                        'ON UPDATE NO ACTION ON DELETE NO ACTION);')
         conn.commit()
-        
+
         cursor.close()
         conn.close()
         logger.info("Все таблицы успешно созданы.")
         print('Все таблицы успешно созданы')
     except Exception as e:
         logger.error(f"Ошибка при создании таблиц: {e}")
+
 
 def check_db_connection() -> str:
     try:
@@ -111,16 +106,16 @@ def check_db_connection() -> str:
             host=DB_HOST,
             port=DB_PORT
         )
-        
+
         # Получаем количество пользователей в системе
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users;")
         user_count = cursor.fetchone()[0]
         conn.close()
-        
+
         # Логируем успешное подключение
         logger.info(f"Подключение к базе данных успешно установлено. В системе {user_count} пользователя.")
-        
+
         # Формируем сообщение
         return f"Приветствую! Подключение к базе данных успешно установлено. Количество пользователей в системе: {user_count}."
     except Exception as e:
@@ -128,6 +123,7 @@ def check_db_connection() -> str:
         logger.error(f"Ошибка при подключении к базе данных: {e}")
         print(f"Ошибка при подключении к базе данных: {e}")
         return f"Ошибка при подключении к базе данных: {e}"
+
 
 def check_user_exists(user_id):
     try:
@@ -151,11 +147,13 @@ def check_user_exists(user_id):
 
 RULES_TEXT = "ыуу \n eea"
 
+
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Отправляем сообщение с правилами
     await update.message.reply_text(RULES_TEXT)
- 
-def is_user_banned(telegram_id: int) -> bool:
+
+
+def is_user_banned(telegram_id: int) -> bool: #проверка на бан
     try:
         # Подключение к базе данных
         conn = psycopg2.connect(
@@ -166,34 +164,26 @@ def is_user_banned(telegram_id: int) -> bool:
             port=DB_PORT
         )
         cursor = conn.cursor()
-
         # Выполнение запроса для проверки, заблокирован ли пользователь
         cursor.execute(f'SELECT role FROM users WHERE id = {telegram_id}')
         is_banned = cursor.fetchone() == 'Banned'
-
-        # Закрытие соединения
         cursor.close()
         conn.close()
-
         return is_banned
     except Exception as e:
         logger.error(f"Ошибка при проверке бана: {e}")
         return False
-    
-    
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.effective_user.id
 
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, edit=False) -> int:
+    user_id = update.effective_user.id
     # Проверка, находится ли пользователь в списке заблокированных
-    if is_user_banned(user_id):  # Удален await
+    if is_user_banned(user_id):
         await update.message.reply_text("Вы заблокированы и не можете создать анкету.")
         return ConversationHandler.END
-
-    # Проверка подключения к базе данных
     db_status = check_db_connection()
-    await update.message.reply_text(db_status)
-
-    # Проверка, существует ли пользователь
+    if not edit: # если профиль изменяется - не выводится текст о бд
+        await update.message.reply_text(db_status)
     user = check_user_exists(user_id)
     if user:
         await update.message.reply_text("Вы уже зарегистрированы. Вот ваша анкета:")
@@ -202,6 +192,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         await update.message.reply_text("Введите ваше имя (слитно, на русском):")
         return NAME
+
 
 # Сохранение данных пользователя
 async def save_data(user_id, name, sex, age, city, description, photo, song, region, preferences):
@@ -225,7 +216,8 @@ async def save_data(user_id, name, sex, age, city, description, photo, song, reg
     except Exception as e:
         logger.error(f"Ошибка при сохранении данных: {e}")
 
-def dbuid(id): #возвращает id в бд по tg_id
+
+def dbuid(id):  # возвращает id в бд по tg_id
     conn = psycopg2.connect(
         dbname=DB_NAME,
         user=DB_USER,
@@ -236,6 +228,7 @@ def dbuid(id): #возвращает id в бд по tg_id
     cursor = conn.cursor()
     cursor.execute(f'SELECT id FROM users WHERE telegram_id = {id}')
     return cursor.fetchone()[0]
+
 
 # Удаление данных пользователя
 async def delete_data(user_id):
@@ -259,10 +252,11 @@ async def delete_data(user_id):
     except Exception as e:
         logger.error(f"Ошибка при удалении данных: {e}")
 
+
 async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=0):
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
-    
+
     if user:
         # Формирование текста профиля
         profile_text = (
@@ -273,11 +267,11 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_
             f"Описание: {user[6]}\n"
             f"Предпочтения: {user[10]}\n"
         )
-        
+
         # Добавление роли, если она есть
         if user[12]:  # Предполагается, что роль находится в user[12]
             profile_text += f"Роль: {user[12]}\n"
-        
+
         # Отправляем фото с подписью
         if user[7]:  # Фото
             await context.bot.send_photo(
@@ -287,11 +281,11 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_
             )
         else:
             # Если фото нет, отправляем текст
-            await context.bot.send_message(
+            await update.callback_query.message.edit_text(
                 chat_id=update.effective_chat.id,
                 text=profile_text
             )
-        
+
         # Отправляем аудио отдельно
         if user[8]:  # Песня
             await context.bot.send_audio(
@@ -305,8 +299,15 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_
             text="Профиль не найден. Пожалуйста, зарегистрируйтесь."
         )
 
-        
-        
+
+async def editprofile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=0):
+    user_id = update.effective_user.id
+    user = check_user_exists(user_id)
+    if user:
+        await delete_profile(update, context, edit=True)
+        return await start(update, context, edit=True)
+
+
 async def change_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
@@ -319,6 +320,7 @@ async def change_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Профиль не найден. Пожалуйста, зарегистрируйтесь.")
         return ConversationHandler.END
 
+
 async def handle_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text
     if not name.isalpha():  # Проверка на слитность и только алфавитные символы
@@ -330,7 +332,6 @@ async def handle_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SEX
 
 
-
 async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     age = update.message.text
     if not age.isdigit() or not (16 <= int(age) <= 80):
@@ -339,6 +340,7 @@ async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['age'] = int(age)
     await update.message.reply_text("Введите ваш город (на русском языке):")
     return CITY
+
 
 async def handle_sex(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     sex = update.message.text
@@ -361,8 +363,8 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         json_response = response.json()
         try:
             toponym = \
-            json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
-                'GeocoderMetaData']['Address']['Components']
+                json_response['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty'][
+                    'GeocoderMetaData']['Address']['Components']
             region, city = [x['name'] for x in toponym if x['kind'] in ['province', 'locality']][-2:]
         except:
             await update.message.reply_text(
@@ -373,8 +375,10 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text("Введите описание вашего профиля (на русском языке):")
         return DESCRIPTION
     else:
-        await update.message.reply_text("Город должен быть на русском языке и содержать только буквы. Попробуйте снова:")
+        await update.message.reply_text(
+            "Город должен быть на русском языке и содержать только буквы. Попробуйте снова:")
         return CITY
+
 
 async def handle_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     description = update.message.text
@@ -384,6 +388,7 @@ async def handle_description(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['description'] = description
     await update.message.reply_text("Загрузите ваше фото. Не размещайте запрещенный контент.")
     return PHOTO
+
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     photo_file = update.message.photo[-1].file_id
@@ -422,16 +427,16 @@ async def handle_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return PREFERENCES
 
+
 async def handle_preferences_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     preferences = update.message.text
     if preferences.lower() in ['девушки', 'мужчины', 'девушки и мужчины']:
         context.user_data['preferences'] = preferences
         return await handle_confirmation(update, context)
     else:
-        await update.message.reply_text("Пожалуйста, укажите действительные предпочтения: 'девушки', 'мужчины', или 'девушки и мужчины'. Попробуйте снова:")
+        await update.message.reply_text(
+            "Пожалуйста, укажите действительные предпочтения: 'девушки', 'мужчины', или 'девушки и мужчины'. Попробуйте снова:")
         return PREFERENCES
-
-
 
 
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -464,6 +469,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     if context.user_data['song']:
         await context.bot.send_audio(chat_id=update.effective_chat.id, audio=context.user_data['song'])
     return ConversationHandler.END
+
+
 async def my_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
@@ -474,12 +481,13 @@ async def my_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             "Вы еще не зарегистрированы. Пожалуйста, используйте команду /start для регистрации.")
 
 
-async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, edit=0) -> None:
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
     if user and not is_user_banned(user_id):
         await delete_data(user_id)
-        await update.message.reply_text("Ваш профиль был успешно удален.")
+        if edit:
+            await update.message.reply_text("Ваш профиль был успешно удален.")
     else:
         await update.message.reply_text("Профиль не найден. Возможно, вы не были зарегистрированы.")
 
@@ -487,7 +495,7 @@ async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     user = get_random_user(update)
-
+    print(user, is_user_banned(user_id))
     if user and not is_user_banned(user_id):
         profile_text = (
             f"Имя: {user[2]}\n"
@@ -498,7 +506,7 @@ async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         if user[12]:  # Предполагается, что роль находится в user[12]
             profile_text += f"Роль: {user[12]}\n"
-            
+
         like_button = InlineKeyboardButton("👍 Лайк", callback_data=f"like:{user[1]}")
         dislike_button = InlineKeyboardButton("👎 Дизлайк", callback_data=f"dislike:{user[1]}")
         report_button = InlineKeyboardButton("🚩 Пожаловаться", callback_data=f"report:{user[1]}")
@@ -585,7 +593,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 user2 = await context.bot.get_chat(target_id)
                 user1_tag = f"@{user1.username}" if user1.username else f"пользователь {user_id}"
                 user2_tag = f"@{user2.username}" if user2.username else f"пользователь {target_id}"
-                
+
                 await context.bot.send_message(chat_id=user_id,
                                                text=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user2_tag}")
                 await context.bot.send_message(chat_id=target_id,
@@ -640,6 +648,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
         if conn:
             conn.close()
 
+
 def get_random_user(update: Update) -> dict:
     try:
         conn = psycopg2.connect(
@@ -656,15 +665,15 @@ def get_random_user(update: Update) -> dict:
         # Получаем предпочтения, пол и возраст пользователя
         cursor.execute("SELECT preferences, sex, age FROM users WHERE telegram_id = %s", (user_id,))
         user_data = cursor.fetchone()
-        
+
         if not user_data:
             cursor.close()
             conn.close()
             return None
 
         user_preferences, user_sex, user_age = user_data
-        age_min = max(16, user_age - 3)
-        age_max = min(80, user_age + 3)
+        age_min = max(16, user_age - 5)
+        age_max = min(80, user_age + 5)
 
         # Определение фильтра по полу и предпочтениям
         if user_preferences.lower() == 'девушки':
@@ -679,7 +688,7 @@ def get_random_user(update: Update) -> dict:
         # Поиск пользователей по городу
         cursor.execute("SELECT city FROM users WHERE telegram_id = %s", (user_id,))
         city_result = cursor.fetchone()
-        
+
         if city_result:
             city = city_result[0]
             query = """
@@ -694,7 +703,7 @@ def get_random_user(update: Update) -> dict:
             # Поиск пользователей по региону
             cursor.execute("SELECT region FROM users WHERE telegram_id = %s", (user_id,))
             region_result = cursor.fetchone()
-            
+
             if region_result:
                 region = region_result[0]
                 query = """
@@ -764,7 +773,6 @@ def get_random_user(update: Update) -> dict:
 
 application = Application.builder().token(TOKEN).build()
 
-
 # Определение обработчиков команд
 conv_handler = ConversationHandler(
     entry_points=[CommandHandler('start', start)],
@@ -783,8 +791,25 @@ conv_handler = ConversationHandler(
     fallbacks=[CommandHandler('start', start)]
 )
 
+conv_editor = ConversationHandler(
+    entry_points=[CommandHandler('editprofile', editprofile)],
+    states={
+        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_name)],
+        SEX: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_sex)],
+        AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_age)],
+        CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_city)],
+        DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_description)],
+        PHOTO: [MessageHandler(filters.PHOTO, handle_photo)],
+        SONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song)],
+        AUDIO: [MessageHandler(filters.AUDIO, handle_audio)],
+        PREFERENCES: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_preferences_response)],
+        CONFIRM: [MessageHandler(filters.AUDIO, handle_confirmation)]
+    },
+    fallbacks=[CommandHandler('editprofile', editprofile)]
+)
 
 application.add_handler(conv_handler)
+application.add_handler(conv_editor)
 application.add_handler(CommandHandler("myprofile", my_profile))
 application.add_handler(CommandHandler("deleteprofile", delete_profile))
 application.add_handler(CommandHandler("searchprofile", search_profile))
@@ -794,4 +819,3 @@ application.add_handler(CallbackQueryHandler(handle_like_dislike))
 if __name__ == '__main__':
     create_tables()
     application.run_polling()
-    
