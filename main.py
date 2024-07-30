@@ -477,7 +477,7 @@ async def my_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
-    if user:
+    if user and not is_user_banned(user_id):
         await delete_data(user_id)
         await update.message.reply_text("Ваш профиль был успешно удален.")
     else:
@@ -485,9 +485,10 @@ async def delete_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def search_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
     user = get_random_user(update)
 
-    if user:
+    if user and not is_user_banned(user_id):
         profile_text = (
             f"Имя: {user[2]}\n"
             f"Пол: {user[3]}\n"
