@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import logging
 import psycopg2
 from SSHAMAAAANKIIING import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, ContextTypes, show_profile
+from newdb import getrole, getpref
 
 TOKEN = '7468745351:AAF9rCCQPDBLCMyajy0_LWwN7Vb5ztrdVwU' # https://web.telegram.org/a/#7468745351 вот чат
 
@@ -103,7 +104,7 @@ async def makeadmin(update, context):
         given_id = update.message.text
         conn = dbconnect()
         cur = conn.cursor()
-        cur.execute(f"UPDATE users SET role = 'Admin' WHERE telegram_id = {given_id}")
+        cur.execute(f"UPDATE users SET role = 2 WHERE telegram_id = {given_id}")
         conn.commit()
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,9 +138,9 @@ async def reset(update, context):
 def main():
     conn = dbconnect()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET role = 'Admin' WHERE telegram_id = 1057741026")
+    cur.execute("UPDATE users SET role = 2 WHERE telegram_id = 1057741026")
     conn.commit()
-    cur.execute("UPDATE users SET role = 'Admin' WHERE telegram_id = 1268851631")
+    cur.execute("UPDATE users SET role = 2 WHERE telegram_id = 1268851631")
     conn.commit()
     conv_id =  ConversationHandler(entry_points=[CommandHandler('admin', admin)],
                                    states={
