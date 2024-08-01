@@ -4,6 +4,7 @@ import logging
 import psycopg2
 from SSHAMAAAANKIIING import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, ContextTypes, show_profile
 from newdb import getrole, getpref
+from REPORTS import getrole, getpref
 
 TOKEN = '7468745351:AAF9rCCQPDBLCMyajy0_LWwN7Vb5ztrdVwU' # https://web.telegram.org/a/#7468745351 вот чат
 
@@ -38,7 +39,7 @@ def checkrole(id): # проверка на админа
     role = cursor.fetchone()[0]
     conn.close()
     cursor.close()
-    if role == 'Admin':
+    if role == 2:
         return True
     return False
 
@@ -63,17 +64,23 @@ async def search(update, context):
     else:
         conn = dbconnect()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE reports > 3 AND role <> 'Admin' AND role <> 'Banned' ORDER BY reports "
+        cur.execute("SELECT * FROM users WHERE reports > 3 AND role <> 2 AND role <> 3 ORDER BY reports "
                     "DESC")
         profile = cur.fetchone()
         others = cur.fetchall()
         print(profile)
         try:
-            text = f"id: {profile[1]} \nИмя: {profile[2]} \nПол: {profile[3]} \nВозраст: {profile[4]} \n" \
-                   f"Город: {profile[5]}, {profile[9]} \n Описание: {profile[6]} \n" \
-                   f"Предпочтение: {profile[10]} \nСтатус: {profile[11]}"
+            print(profile[10])
+            role = getrole(profile[11])
+            pref = getpref(profile[9])
+            text = f"id: {profile[0]} \nИмя: {profile[1]} \nПол: {profile[2]} \nВозраст: {profile[3]} \n" \
+                   f"Город: {profile[4]}, {profile[8]} \n Описание: {profile[5]} \n" \
+                   f"Предпочтение: {pref} \nСтатус: {role} \nЖалоб: {profile[10]}"
         except TypeError:
-            await update.message.reply_text('Больше нет подходящих анкет')
+            try:
+                await update.message.reply_text('Больше нет подходящих анкет')
+            except AttributeError:
+                await update.callback_query.message.edit_text('Больше нет подходящих анкет')
             return False
         buttons = [
             [InlineKeyboardButton("Ban", callback_data=f"ban_{profile[0]}")],
@@ -81,8 +88,8 @@ async def search(update, context):
         ]
         keyboard = InlineKeyboardMarkup(buttons)
         # query = update.callback_query
-        if profile[7]:
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=profile[7])
+        if profile[6]:
+            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=profile[6])
         try:
             await update.message.reply_text(text, reply_markup=keyboard)
         except:
@@ -120,7 +127,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("User banned.")
         await search(update, context)
     elif data.startswith("skip_"):
-        cursor.execute(f"UPDATE users SET reports = 0 WHERE id = {user_id}")
+        cursor.execute(f"UPDATE users SET reports = 0 WHERE telegram_id = {user_id}")
         conn.commit()
         await search(update, context)
 
@@ -130,6 +137,8 @@ async def reset(update, context):
     cur.execute('TRUNCATE TABLE likes')
     conn.commit()
     cur.execute('TRUNCATE TABLE dislikes')
+    conn.commit()
+    cur.execute('TRUNCATE TABLE reports')
     conn.commit()
     await update.message.reply_text('Таблицы успешно очищены')
 
