@@ -99,6 +99,8 @@ async def search(update, context):
 
 
 
+
+
 async def admin(update, context):
     await update.message.reply_text('Конечно я могу выдать роль админа. Дайте мне id этоо счастливчка')
     return 1

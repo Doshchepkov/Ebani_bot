@@ -676,6 +676,8 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
             cursor.execute("SELECT * FROM likes WHERE liker_id = %s AND liked_id = %s", (target_id, user_id))
             mutual_like = cursor.fetchone()
 
+
+
             if mutual_like:
                 # Получаем username для обоих пользователей
                 user1 = await context.bot.get_chat(user_id)
