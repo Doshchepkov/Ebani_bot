@@ -674,6 +674,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 
+
             if mutual_like:
                 # Получаем username для обоих пользователей
                 user1 = await context.bot.get_chat(user_id)
