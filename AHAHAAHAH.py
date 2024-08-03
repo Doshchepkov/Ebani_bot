@@ -27,13 +27,14 @@ DB_HOST = 'localhost'
 DB_PORT = '5433'
 
 
+
 def ban(id):
     conn = dbconnect()
     cursor = conn.cursor()
     print(id)
-    cursor.execute(f"UPDATE users SET role = 'Banned' WHERE id = {id}")
+    cursor.execute(f"UPDATE users SET role = 3 WHERE telegram_id = {id}")
     conn.commit()
-    cursor.execute(f"UPDATE users SET reports = 0 WHERE id = {id}")
+    cursor.execute(f"UPDATE users SET reports = 0 WHERE telegram_id = {id}")
     conn.commit()
     conn.close()
     cursor.close()
@@ -84,8 +85,8 @@ async def adminsearch(update, context):
         print(profile)
         try:
             print(profile[10])
-            role = getrole1(profile[11])
-            pref = getpref1(profile[9])
+            role = getrole(profile[11])
+            pref = getpref(profile[9])
             text = f"id: {profile[0]} \nИмя: {profile[1]} \nПол: {profile[2]} \nВозраст: {profile[3]} \n" \
                    f"Город: {profile[4]}, {profile[8]} \n Описание: {profile[5]} \n" \
                    f"Предпочтение: {pref} \nСтатус: {role} \nЖалоб: {profile[10]}"
@@ -96,17 +97,19 @@ async def adminsearch(update, context):
                 await update.callback_query.message.edit_text('Больше нет подходящих анкет')
             return False
         buttons = [
-            [InlineKeyboardButton("Ban", callback_data=f"ban_{profile[0]}")],
-            [InlineKeyboardButton("Skip", callback_data=f"skip_{profile[0]}")]
+            [InlineKeyboardButton("Ban", callback_data=f"ban:{profile[0]}")],
+            [InlineKeyboardButton("Skip", callback_data=f"askip:{profile[0]}")]
         ]
         keyboard = InlineKeyboardMarkup(buttons)
         # query = update.callback_query
         if profile[6]:
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=profile[6])
-        try:
-            await update.message.reply_text(text, reply_markup=keyboard)
-        except:
-            await update.callback_query.message.edit_text(text, reply_markup=keyboard)
+            await context.bot.send_photo(chat_id=update.effective_chat.id, caption=text[:1024], photo=profile[6], reply_markup=keyboard)
+        else:
+
+            try:
+                await update.message.reply_text(text, reply_markup=keyboard)
+            except:
+                await update.callback_query.message.edit_text(text, reply_markup=keyboard)
 
 
 
@@ -924,6 +927,18 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                     await query.edit_message_text(text="Вы пожаловались на этот профиль. Мы рассмотрим ваш запрос.")
             else:
                 await query.edit_message_text(text="Вы уже жаловались на этот профиль ранее.")
+        elif action == 'ban':
+            user_id = int(query.data.split(':')[1])
+            ban(user_id)
+            cursor.execute(f"UPDATE users SET reports = 0 WHERE telegram_id = {user_id}")
+            conn.commit()
+            await query.message.reply_text("User banned.")
+            return await adminsearch(update, context)
+        elif action == 'askip':
+            user_id = int(query.data.split(':')[1])
+            cursor.execute(f"UPDATE users SET reports = 0 WHERE telegram_id = {user_id}")
+            conn.commit()
+            return await adminsearch(update, context)
 
         else:
             if query.message and query.message.text:
@@ -995,33 +1010,36 @@ def get_random_user(update: Update) -> dict:
                 AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
             """
             params = (city, user_id, user_id, user_id, user_id)
-        else:
-            # Поиск пользователей по региону
+            cursor.execute(query, params)
+        matched_users = cursor.fetchall()
+        if not matched_users:
             cursor.execute("SELECT region FROM users WHERE telegram_id = %s", (user_id,))
             region_result = cursor.fetchone()
 
             if region_result:
                 region = region_result[0]
                 query = """
-                    SELECT * FROM users 
-                    WHERE region = %s 
-                    AND telegram_id != %s 
-                    AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
-                    AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
-                    AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
-                """
-                params = (region, user_id, user_id, user_id)
-            else:
-                # Поиск пользователей по всей базе
-                query = """
-                    SELECT * FROM users 
-                    WHERE telegram_id != %s 
-                    AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
-                    AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
-                    AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
-                """
-                params = (user_id, user_id, user_id)
-
+                                SELECT * FROM users 
+                                WHERE region = %s 
+                                AND telegram_id != %s 
+                                AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                                AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
+                                AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
+                            """
+                params = (region, user_id, user_id, user_id, user_id)
+                cursor.execute(query, params)
+        matched_users = cursor.fetchall()
+        if not matched_users:
+            query = """
+                            SELECT * FROM users 
+                            WHERE telegram_id != %s 
+                            AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
+                            AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
+                            AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
+                        """
+            params = (user_id, user_id, user_id, user_id)
+            cursor.execute(query, params)
+        matched_users = cursor.fetchall()
         # Условие по полу
         if search_sex:
             query += " AND sex = %s"
@@ -1033,29 +1051,6 @@ def get_random_user(update: Update) -> dict:
 
         cursor.execute(query, params)
         matched_users = cursor.fetchall()
-
-        if not matched_users:
-            # Если не нашлось пользователей по городу или региону, ищем по всей базе
-            query = """
-                SELECT * FROM users 
-                WHERE telegram_id != %s 
-                AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
-                AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
-                AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
-            """
-            params = (user_id, user_id, user_id)
-
-            # Условие по полу
-            if search_sex:
-                query += " AND sex = %s"
-                params += (search_sex,)
-
-            # Условие по возрасту
-            query += " AND age BETWEEN %s AND %s"
-            params += (age_min, age_max)
-
-            cursor.execute(query, params)
-            matched_users = cursor.fetchall()
 
         cursor.close()
         conn.close()
