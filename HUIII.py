@@ -128,6 +128,21 @@ async def makeadmin(update, context):
         cur.execute(f"UPDATE users SET role = 2 WHERE telegram_id = {given_id}")
         conn.commit()
 
+async def getrecover(update, context):
+    await update.message.reply_text('Я могу восстановить забаненного. Дайте мне id участника')
+    return 1
+
+async def recover(update, context):
+    user_id = update.effective_user.id
+    if not checkrole(user_id):
+        await gfys(update)
+    else:
+        given_id = update.message.text
+        conn = dbconnect()
+        cur = conn.cursor()
+        if not checkrole(given_id):
+            cur.execute(f"UPDATE users SET role = 1 WHERE telegram_id = {given_id}")
+        conn.commit()
 
 
 async def reset(update, context):
@@ -154,15 +169,21 @@ def main():
                                    states={
                                        1: [MessageHandler(filters.TEXT & ~filters.COMMAND, makeadmin)]},
                                    fallbacks=[CommandHandler('adminstart', adminstart)])
+    conv_rec = ConversationHandler(entry_points=[CommandHandler('recover', getrecover)],
+                                  states={
+                                      1: [MessageHandler(filters.TEXT & ~filters.COMMAND, recover)]},
+                                  fallbacks=[CommandHandler('adminstart', adminstart)])
     application = Application.builder().token(TOKEN).build()
     application.add_handler(conv_id)
     application.add_handler(CommandHandler("adminstart", adminstart))
     application.add_handler(CommandHandler("admin", admin))
     application.add_handler(CommandHandler("adminsearch", adminsearch))
     application.add_handler(CommandHandler("reset", reset))
+    application.add_handler(CommandHandler("recover", getrecover))
   
     application.add_handler(conv_handler)
     application.add_handler(conv_editor)
+    application.add_handler(conv_rec)
     application.add_handler(CommandHandler("myprofile", my_profile))
     application.add_handler(CommandHandler("deleteprofile", delete_profile))
     application.add_handler(CommandHandler("searchprofile", search_profile))
@@ -856,30 +877,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
             cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
             liker_profile = cursor.fetchone()
 
-            if liker_profile:
-                liker_info =""
-                if liker_profile[11] == 2:  # Предполагается, что роль находится в user[12]
-                    liker_info += f"\nAdmin★\n"
-                # Формирование текста профиля
-                liker_info1 = (
-                    f"{liker_profile[1]}, "
 
-                    f"{liker_profile[3]}, "
-                    f"{liker_profile[4]}, "
-                    f"{liker_profile[8]}\n"
-                    f"{liker_profile[5]}"
-                )
-                liker_info = liker_info + liker_info1
-                like_button = InlineKeyboardButton("🖤", callback_data=f"like:{user_id}")
-                dislike_button = InlineKeyboardButton("➔", callback_data=f"dislike:{user_id}")
-                report_button = InlineKeyboardButton("🚩", callback_data=f"report:{user_id}")
-                keyboard = InlineKeyboardMarkup([[like_button, dislike_button, report_button]])
-
-                    
-                if liker_profile[6]:  # Фото
-                    await context.bot.send_photo(chat_id=target_id, photo=liker_profile[6], caption=liker_info[:1024], reply_markup=keyboard)
-                if liker_profile[7]:  # Песня
-                    await context.bot.send_audio(chat_id=target_id, audio=liker_profile[7])
 
             cursor.execute("SELECT * FROM likes WHERE liker_id = %s AND liked_id = %s", (target_id, user_id))
             mutual_like = cursor.fetchone()
@@ -893,11 +891,6 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 user1_tag = f"@{user1.username}" if user1.username else f"пользователь {user_id}"
                 user2_tag = f"@{user2.username}" if user2.username else f"пользователь {target_id}"
 
-                await context.bot.send_message(chat_id=user_id,
-                                               text=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user2_tag}")
-                await context.bot.send_message(chat_id=target_id,
-                                               text=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user1_tag}")
-                # Получаем username для обоих пользователей
                 # Получаем данные профилей
                 cursor.execute("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
                 user1 = cursor.fetchone()
@@ -906,7 +899,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 user2 = cursor.fetchone()
                 
 
-                user1_text1=""
+                user1_text1=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user1_tag}\n"
                 if user1[11] == 2:
                     user1_text1+= "\nAdmin★\n" 
                     
@@ -920,7 +913,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
                 user1_text = user1_text1 + user1_text
                 
-                user2_text1=""
+                user2_text1=f"У вас взаимный лайк! Вот контакт вашего совпадения: {user2_tag}\n"
                 if user2[11] == 2:
                     user2_text1+= "\nAdmin★\n" 
                     
@@ -947,6 +940,7 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                         text=user2_text
                     )
 
+
                 if user2[6]:  # Фото пользователя 2
                     await context.bot.send_photo(
                         chat_id=target_id,
@@ -958,6 +952,30 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                         chat_id=target_id,
                         text=user1_text
                     )
+            elif liker_profile:
+                liker_info ="Вас лайкнул\n"
+                if liker_profile[11] == 2:  # Предполагается, что роль находится в user[12]
+                    liker_info += f"\nAdmin★\n"
+                # Формирование текста профиля
+                liker_info1 = (
+                    f"{liker_profile[1]}, "
+
+                    f"{liker_profile[3]}, "
+                    f"{liker_profile[4]}, "
+                    f"{liker_profile[8]}\n"
+                    f"{liker_profile[5]}"
+                )
+                liker_info = liker_info + liker_info1
+                like_button = InlineKeyboardButton("🖤", callback_data=f"like:{user_id}")
+                dislike_button = InlineKeyboardButton("➔", callback_data=f"dislike:{user_id}")
+                report_button = InlineKeyboardButton("🚩", callback_data=f"report:{user_id}")
+                keyboard = InlineKeyboardMarkup([[like_button, dislike_button, report_button]])
+
+
+                if liker_profile[6]:  # Фото
+                    await context.bot.send_photo(chat_id=target_id, photo=liker_profile[6], caption=liker_info[:1024], reply_markup=keyboard)
+                if liker_profile[7]:  # Песня
+                    await context.bot.send_audio(chat_id=target_id, audio=liker_profile[7])
             else:
                 if query.message and query.message.text:
                     await query.edit_message_text(text="Вы поставили лайк этому профилю.")
