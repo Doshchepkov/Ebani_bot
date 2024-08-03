@@ -208,6 +208,7 @@ def dbconnect1():
     cursor = conn.cursor()
     return conn, cursor
 
+
 def create_tables():
     try:
         conn, cur = dbconnect1()
