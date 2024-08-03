@@ -661,10 +661,14 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
                 like_button = InlineKeyboardButton("👍 Лайк", callback_data=f"like:{user_id}")
                 dislike_button = InlineKeyboardButton("👎 Дизлайк", callback_data=f"dislike:{user_id}")
 <<<<<<< HEAD
+<<<<<<< HEAD
                 report_button = InlineKeyboardButton("🚩 Пожаловаться", callback_data=f"report:{target_id}")
 =======
                 report_button = InlineKeyboardButton("🚩 Пожаловаться", callback_data=f"report:{user_id}")
 >>>>>>> ed9dc52 (исправил репорты и админа)
+=======
+                report_button = InlineKeyboardButton("🚩 Пожаловаться", callback_data=f"report:{user_id}")
+>>>>>>> origin/test
                 keyboard = InlineKeyboardMarkup([[like_button, dislike_button, report_button]])
 
                 await context.bot.send_message(chat_id=target_id, text=liker_info, reply_markup=keyboard)
@@ -712,10 +716,14 @@ async def handle_like_dislike(update: Update, context: ContextTypes.DEFAULT_TYPE
             cursor.execute('SELECT rep_id FROM reports WHERE reporter = %s AND reported = %s', (user_id, reported_user_id))
             prev = cursor.fetchall()
 <<<<<<< HEAD
+<<<<<<< HEAD
             if not prev:
 =======
             if not prev and not target_id == user_id:
 >>>>>>> ed9dc52 (исправил репорты и админа)
+=======
+            if not prev and not target_id == user_id:
+>>>>>>> origin/test
                 logger.info(f"Жалоба не найдена, добавляем новую: reporter_id={user_id}, reported_id={reported_user_id}")
                 # Обновление колонки reports
                 cursor.execute("UPDATE users SET reports = reports + 1 WHERE telegram_id = %s", (reported_user_id,))
@@ -797,6 +805,7 @@ def get_random_user(update: Update) -> dict:
                 AND telegram_id NOT IN (SELECT liked_id FROM likes WHERE liker_id = %s)
                 AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
 <<<<<<< HEAD
+<<<<<<< HEAD
             """
             params = (city, user_id, user_id, user_id)
 =======
@@ -804,6 +813,11 @@ def get_random_user(update: Update) -> dict:
             """
             params = (city, user_id, user_id, user_id, user_id)
 >>>>>>> ed9dc52 (исправил репорты и админа)
+=======
+                AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
+            """
+            params = (city, user_id, user_id, user_id, user_id)
+>>>>>>> origin/test
         else:
             # Поиск пользователей по региону
             cursor.execute("SELECT region FROM users WHERE telegram_id = %s", (user_id,))
