@@ -1343,11 +1343,21 @@ def get_random_user(update: Update) -> dict:
                 AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
                 AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
                 AND role != 3
-               
+                AND (preferences = %s OR preferences = 3)
             """
-            params = (city, user_id, user_id, user_id, user_id)
+            params = (city, user_id, user_id, user_id, user_id, search_pref)
+            if search_sex:
+                query += " AND sex = %s"
+                params += (search_sex,)
+
+            # Условие по возрасту
+            query += " AND age BETWEEN %s AND %s"
+            params += (age_min, age_max)
             cursor.execute(query, params)
+
         matched_users = cursor.fetchall()
+
+        print(matched_users)
         if not matched_users:
             cursor.execute("SELECT region FROM users WHERE telegram_id = %s", (user_id,))
             region_result = cursor.fetchone()
@@ -1362,11 +1372,19 @@ def get_random_user(update: Update) -> dict:
                                 AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
                                 AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
                                 AND role != 3
-                              
+                                AND (preferences = %s OR preferences = 3)
                             """
-                params = (region, user_id, user_id, user_id, user_id)
+                params = (region, user_id, user_id, user_id, user_id, search_pref)
+                if search_sex:
+                    query += " AND sex = %s"
+                    params += (search_sex,)
+
+                # Условие по возрасту
+                query += " AND age BETWEEN %s AND %s"
+                params += (age_min, age_max)
                 cursor.execute(query, params)
             matched_users = cursor.fetchall()
+            print(matched_users)
         if not matched_users:
             query = """
                             SELECT * FROM users 
@@ -1375,22 +1393,25 @@ def get_random_user(update: Update) -> dict:
                             AND telegram_id NOT IN (SELECT dliked_id FROM dislikes WHERE dliker_id = %s)
                             AND telegram_id NOT IN (SELECT reported FROM reports WHERE reporter = %s)
                             AND role != 3
-                            
+                            AND (preferences = %s OR preferences = 3)
                         """
-            params = (user_id, user_id, user_id, user_id)
+            params = (user_id, user_id, user_id, user_id, search_pref)
+            if search_sex:
+                query += " AND sex = %s"
+                params += (search_sex,)
+
+            # Условие по возрасту
+            query += " AND age BETWEEN %s AND %s"
+            params += (age_min, age_max)
             cursor.execute(query, params)
             matched_users = cursor.fetchall()
         # Условие по полу
-        if search_sex:
-            query += " AND sex = %s"
-            params += (search_sex,)
 
-        # Условие по возрасту
-        query += " AND age BETWEEN %s AND %s"
-        params += (age_min, age_max)
 
         cursor.execute(query, params)
         matched_users = cursor.fetchall()
+
+        print(*matched_users, sep='\n')
 
         cursor.close()
         conn.close()
@@ -1402,6 +1423,7 @@ def get_random_user(update: Update) -> dict:
 
     except Exception as e:
         logger.error(f"Ошибка при получении случайного пользователя: {e}")
+        print(e)
         return None
 
 
