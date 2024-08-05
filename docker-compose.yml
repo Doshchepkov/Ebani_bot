@@ -1,32 +1,22 @@
 version: '3.8'
 
 services:
-  bot:
+  app:
     build: .
-    environment:
-      - TELEGRAM_TOKEN="7477964182:AAGrsvu1z8BsfmBeeGrzUmZcCB6AUh2T2V0"
-      - DATABASE_URL="postgres://myuser:mypassword@db:5433/mydatabase"
-    depends_on:
-      - localhost
-    networks:
-      - bot1_default
-
-  localhost:
-    image: postgres:13
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: mydatabase
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"  # Пробрасываем порт 5432 на хост
     networks:
-      - bot1_default
+      - app_network
 
 volumes:
   pgdata:
 
 networks:
-  bot1_default:
+  app_network:
     driver: bridge

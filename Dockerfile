@@ -1,25 +1,29 @@
-# Используем базовый образ Python
-FROM python:3.9-slim
+# Используем официальный образ PostgreSQL как базовый
+FROM postgres:13
 
-# Устанавливаем необходимые системные зависимости
-RUN apt-get update && \
-    apt-get install -y \
-    libpq-dev \
-    gcc \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Устанавливаем необходимые пакеты для вашего скрипта (например, Python и необходимые библиотеки)
+RUN apt-get update && apt-get install -y python3 python3-pip python3-venv
 
-# Устанавливаем рабочую директорию
-WORKDIR /app
+# Создаем виртуальное окружение
+RUN python3 -m venv /usr/src/app/venv
 
-# Копируем файл зависимостей
-COPY requirements.txt requirements.txt
+# Устанавливаем Python зависимости в виртуальное окружение
+COPY requirements.txt /usr/src/app/requirements.txt
+RUN /usr/src/app/venv/bin/pip install -r /usr/src/app/requirements.txt
 
-# Устанавливаем зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+# Копируем ваш скрипт в контейнер
+COPY main.py /usr/src/app/main.py
 
-# Копируем все файлы приложения
-COPY . .
+# Устанавливаем переменные окружения для PostgreSQL
+ENV POSTGRES_USER=myuser
+ENV POSTGRES_PASSWORD=mypassword
+ENV POSTGRES_DB=mydatabase
 
-# Определяем команду для запуска приложения
-CMD ["python", "main.py"]
+# Создаем папку для данных PostgreSQL, если она не создана
+RUN mkdir -p /var/lib/postgresql/data
+
+# Открываем порт PostgreSQL
+EXPOSE 5432
+
+# Запускаем PostgreSQL и ваш скрипт
+CMD ["sh", "-c", "docker-entrypoint.sh postgres & /usr/src/app/venv/bin/python /usr/src/app/main.py"]
