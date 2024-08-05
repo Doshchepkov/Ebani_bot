@@ -71,6 +71,7 @@ def is_admin(user_id: int) -> bool:
 async def text_handler(update: Update, context: CallbackContext) -> None:
     user_data = context.user_data
     if 'waiting_for_text' in user_data:
+        print(user_data)
         user_data['text'] = update.message.text
         user_data['waiting_for_text'] = False
         await update.message.reply_text("Отправьте фото для рассылки:")
@@ -78,10 +79,12 @@ async def text_handler(update: Update, context: CallbackContext) -> None:
 
 async def photo_handler1(update: Update, context: CallbackContext) -> None:
     user_data = context.user_data
+    print(update.message)
     if 'waiting_for_text' in user_data:
         print("AAAAAAASASSA")
         if update.message.photo:
             user_data['photo'] = update.message.photo[-1].file_id
+            user_data['text'] = update.message.caption
             await update.message.reply_text("Рассылка началась...")
             photo = user_data.get('photo')
             text = user_data.get('text')
@@ -651,26 +654,41 @@ def getrole1(id):
     return cur.fetchone()[0]
 
 
-async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=0):
+async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=0, my=False):
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
 
     pref = getpref(user[9])
     role = getrole(user[11])
-
+    profile_text1 = ''
     if user:
-        profile_text = ""
-        if user[11] == 2:  # Предполагается, что роль находится в user[12]
-            profile_text += f"\nAdmin★\n"
+        if not my:
+            profile_text = ""
+            if user[11] == 2:  # Предполагается, что роль находится в user[12]
+                profile_text += f"\nAdmin★\n"
         # Формирование текста профиля
-        profile_text1 = (
-            f"{user[1]}, "
+            profile_text1 = (
+                f"{user[1]}, "
 
-            f"{user[3]}, "
-            f"{user[4]}, "
-            f"{user[8]}\n"
-            f"{user[5]}"
-        )
+                f"{user[3]}, "
+                f"{user[4]}, "
+                f"{user[8]}\n"
+                f"{user[5]}"
+            )
+        else:
+            profile_text = (
+                f"Ваши настройки:\n\n"
+                f"Имя: {user[1]}\n"
+                f"Пол: {user[2]}\n"
+                f"Возраст: {user[3]}\n"
+                f"Город: {user[4]}, {user[8]}\n"
+                f"Предпочтения: {pref}\n"
+                f"Жалоб: {user[10]}\n"
+                f"Статус: {role}\n\n"
+                f"Описание:\n{user[5]}\n"
+            )
+
+
         profile_text = profile_text + profile_text1
 
         # Добавление роли, если она есть
@@ -909,7 +927,7 @@ async def my_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user_id = update.effective_user.id
     user = check_user_exists(user_id)
     if user:
-        await show_profile(update, context)
+        await show_profile(update, context, my=True)
     else:
         await update.message.reply_text(
             "Вы еще не зарегистрированы. Пожалуйста, используйте команду /start для регистрации.")
